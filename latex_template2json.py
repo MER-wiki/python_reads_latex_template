@@ -1,9 +1,39 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 import os
 import json
 import re
 import glob
 import pypandoc
 import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
+
+def put_to_txt(location, question_json):
+    year = question_json['year']
+    term = question_json['term']
+    course = question_json['course']
+    statement = question_json['statement_wiki']
+    hints = question_json['hints_wiki']
+    sols = question_json['sols_wiki']
+
+    with open(location, 'w') as f:
+        f.write(course + ' ' + term + ' ' + str(year) + '\n\n\n')
+        f.write('Statement:\n')
+        f.write(statement)
+        f.write('\n\n\n\n\n')
+
+        for zahl, hint in enumerate(hints):
+            f.write('Hint_%s:\n' % (zahl + 1))
+            f.write(hint)
+            f.write('\n\n\n\n\n')
+
+        for zahl, sol in enumerate(sols):
+            f.write('Solution_%s:\n' % (zahl + 1))
+            f.write(sol)
+            f.write('\n\n\n\n\n')
+    f.close()
 
 
 def get_question_name(question):
@@ -52,9 +82,17 @@ def postCleaning(text):
     return text.replace('{aligned}', '{align}')
 
 
+def preCleaning(text):
+    text = text.replace(u'\xe2', "'")
+    text = text.replace('\\figure', ' MISSING FIGURE HERE:')
+    return text
+
+
 def latex2wiki(latex_text):
-    wiki_text = pypandoc.convert(latex_text, 'mediawiki', format='latex')
+    wiki_text = pypandoc.convert(
+        preCleaning(latex_text), 'mediawiki', format='latex')
     wiki_text = postCleaning(wiki_text)
+    wiki_text = wiki_text.strip()
     return wiki_text
 
 
@@ -107,7 +145,7 @@ if __name__ == '__main__':
         os.makedirs('json_data')
 
     for solved_exam in all_files:
-        text = open(solved_exam, 'r').read()
+        text = open(solved_exam, 'rU').read()
 
         course = text.split('\\newcommand{\\course}{')[1].split('}')[0]
         year = text.split('\\newcommand{\\term}{')[1].split('}')[
@@ -136,3 +174,7 @@ if __name__ == '__main__':
                 where_to_save, "Question_%s.json" % question_name)
             json.dump(
                 question_json, open(location, "w"), indent=4, sort_keys=True)
+
+            location = os.path.join(
+                where_to_save, "Question_%s.txt" % question_name)
+            put_to_txt(location, question_json)
