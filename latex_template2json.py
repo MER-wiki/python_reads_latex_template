@@ -53,8 +53,7 @@ def remove_comments(question):
     text = ''
     for line in lines:
         line = line.split(' %')[0]
-        text += line
-    text = re.sub(r'^%[\s\S]', '', text)
+        text += line + '\n'
     return text
 
 
@@ -125,8 +124,11 @@ def grap_question_info(question, course, year, term, solver):
     question = remove_comments(question)
     question_name, points = get_question_name(question)
 
-    statement_latex = question.split('\\begin{statement}')[1].split(
-        '\\end{statement}')[0].strip()
+    try:
+        statement_latex = question.split('\\begin{statement}')[1].split(
+            '\\end{statement}')[0].strip()
+    except IndexError:
+        print(question)
     hints_latex = get_hints(question)
     answer_latex = question.split('\\begin{answer}')[1].split(
         '\\end{answer}')[0].strip()
@@ -250,4 +252,5 @@ if __name__ == '__main__':
             # folder exists already
             pass
         x = subprocess.call('mv %s/*.txt %s' %
-                            (where_to_save, TEXT_DIR), shell=True)
+                            (where_to_save.replace(' ', '\ '),
+                                TEXT_DIR.replace(' ', '\ ')), shell=True)
