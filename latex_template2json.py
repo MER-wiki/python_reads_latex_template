@@ -78,13 +78,34 @@ def get_solutions(question):
     return solutions
 
 
-def postCleaning(text):
-    return text.replace('{aligned}', '{align}')
-
-
 def preCleaning(text):
     text = text.replace(u'\xe2', "'")
     text = text.replace('\\figure', ' MISSING FIGURE HERE:')
+    text = text.replace('{eqnarray', '{align')
+    return text
+
+
+def postCleaning(text):
+    text = text.replace('{aligned}', '{align}')
+    text = text.replace('</p>', '').replace('<p>', '')
+
+    # Handle <span>: This should trigger a new line...
+    text = text.replace('</span>', '').replace('<span>', '\n\n')
+    # unless it only contains a single word
+    text = re.sub(r"\n\n('''\w+''')", r'\1', text)
+
+    # Add space before and after <math> and </math> if not present
+    text = re.sub(r'(\w)(<math>)', r'\1 \2', text)
+    text = re.sub(r'(</math>)(\w)', r'\1 \2', text)
+
+    # Add space after triple ''' if not present
+    text = re.sub(r"([^\n\s]''')(\w)", r'\1 \2', text)
+
+    # Add space in X.Y
+    text = re.sub(r"(\w)\.(\w)", r'\1. \2', text)
+
+    # Move quotation marks outside of <math>
+    text = text.replace("<math>``", '"<math>').replace('"</math>', '</math>"')
     return text
 
 
