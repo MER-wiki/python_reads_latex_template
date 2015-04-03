@@ -5,6 +5,7 @@ import json
 import re
 import glob
 import pypandoc
+import subprocess
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -19,20 +20,20 @@ def put_to_txt(location, question_json):
     sols = question_json['sols_wiki']
 
     with open(location, 'w') as f:
-        f.write(course + ' ' + term + ' ' + str(year) + '\n\n\n')
+        f.write(course + ' ' + term + ' ' + str(year) + '\n\n')
         f.write('Statement:\n')
         f.write(statement)
-        f.write('\n\n\n\n\n')
+        f.write('\n\n\n\n')
 
         for zahl, hint in enumerate(hints):
             f.write('Hint_%s:\n' % (zahl + 1))
             f.write(hint)
-            f.write('\n\n\n\n\n')
+            f.write('\n\n\n\n')
 
         for zahl, sol in enumerate(sols):
             f.write('Solution_%s:\n' % (zahl + 1))
             f.write(sol)
-            f.write('\n\n\n\n\n')
+            f.write('\n\n\n\n')
     f.close()
 
 
@@ -52,7 +53,8 @@ def remove_comments(question):
     text = ''
     for line in lines:
         line = line.split(' %')[0]
-        text = text + line
+        text += line
+    text = re.sub(r'^%[\s\S]', '', text)
     return text
 
 
@@ -82,12 +84,14 @@ def preCleaning(text):
     text = text.replace(u'\xe2', "'")
     text = text.replace('\\figure', ' MISSING FIGURE HERE:')
     text = text.replace('{eqnarray', '{align')
+    text = re.sub(r'[^\n](\\begin{align})', r'\n\1', text)
     return text
 
 
 def postCleaning(text):
     text = text.replace('{aligned}', '{align}')
     text = text.replace('</p>', '').replace('<p>', '')
+    text = text.replace('<br />', '\n\n')
 
     # Handle <span>: This should trigger a new line...
     text = text.replace('</span>', '').replace('<span>', '\n\n')
@@ -102,7 +106,7 @@ def postCleaning(text):
     text = re.sub(r"([^\n\s]''')(\w)", r'\1 \2', text)
 
     # Add space in X.Y
-    text = re.sub(r"(\w)\.(\w)", r'\1. \2', text)
+    text = re.sub(r"([\w>])\.(\w)", r'\1. \2', text)
 
     # Move quotation marks outside of <math>
     text = text.replace("<math>``", '"<math>').replace('"</math>', '</math>"')
@@ -156,6 +160,44 @@ def grap_question_info(question, course, year, term, solver):
     return question_json
 
 
+def substitute_newcommand(file_in):
+
+    mathDictionary = {}
+    commandDictionary = {}
+    exclude = ['course', 'term', 'solver']
+
+    fin = open(file_in, 'rb')
+
+    for line in fin:
+        mathOperator = re.search(
+            '\\\\DeclareMathOperator{\\\\([A-Za-z]*)}{(.*)}', line)
+        if mathOperator:
+            mathDictionary[mathOperator.group(1)] = mathOperator.group(2)
+        newCommand = re.search('\\\\newcommand{\\\\([A-Za-z]*)}{(.*)}', line)
+        if newCommand and not newCommand.group(1) in exclude:
+            commandDictionary[newCommand.group(1)] = newCommand.group(2)
+
+    fin.seek(0)
+    res = ''
+    for line in fin:
+        current = line
+        for x in mathDictionary:
+            current = re.sub(
+                '\\\\DeclareMathOperator{\\\\' + x + '}{(.*)}', '', current)
+            current = re.sub(
+                '\\\\' + x +
+                '(?!\w)', '\\operatorname{' + mathDictionary[x] + '}',
+                current)
+        for x in commandDictionary:
+            current = re.sub(
+                '\\\\newcommand{\\\\' + x + '}{(.*)}', '', current)
+            current = re.sub(
+                '\\\\' + x + '(?!\w)', commandDictionary[x], current)
+
+        res += current.replace(u'\x08', '\\b')
+    return res
+
+
 if __name__ == '__main__':
     all_files = glob.glob('latex-exams/*.tex')
     if not all_files:
@@ -166,7 +208,7 @@ if __name__ == '__main__':
         os.makedirs('json_data')
 
     for solved_exam in all_files:
-        text = open(solved_exam, 'rU').read()
+        text = substitute_newcommand(solved_exam)
 
         course = text.split('\\newcommand{\\course}{')[1].split('}')[0]
         year = text.split('\\newcommand{\\term}{')[1].split('}')[
@@ -184,6 +226,7 @@ if __name__ == '__main__':
             # folder exists already
             pass
 
+        text = remove_comments(text)
         questions = text.split('\\begin{question}')[1:]
 
         for question in questions:
@@ -199,3 +242,12 @@ if __name__ == '__main__':
             location = os.path.join(
                 where_to_save, "Question_%s.txt" % question_name)
             put_to_txt(location, question_json)
+
+        TEXT_DIR = os.path.join(where_to_save, 'ready_for_wiki')
+        try:
+            os.makedirs(TEXT_DIR)
+        except OSError:
+            # folder exists already
+            pass
+        x = subprocess.call('mv %s/*.txt %s' %
+                            (where_to_save, TEXT_DIR), shell=True)
