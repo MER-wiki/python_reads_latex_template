@@ -104,8 +104,8 @@ def postCleaning(text):
     # Add space after triple ''' if not present
     text = re.sub(r"([^\n\s]''')(\w)", r'\1 \2', text)
 
-    # Add space in X.Y
-    text = re.sub(r"([\w>])\.(\w)", r'\1. \2', text)
+    # Add space in X.Y if Y is an alphabetic character
+    text = re.sub(r"([\w>])\.([a-zA-Z])", r'\1. \2', text)
 
     # Move quotation marks outside of <math>
     text = text.replace("<math>``", '"<math>').replace('"</math>', '</math>"')
